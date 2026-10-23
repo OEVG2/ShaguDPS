@@ -20,6 +20,7 @@ local window = ShaguDPS.window
 local QUERY_PREFIX = "TWT_UDTSv4"
 local ANSWER_TAG = "TWTv4="
 local INTERVAL = 0.5
+local FOREIGN_TIMEOUT = 1 -- allow slower polling addons to keep supplying data
 
 local PULL = "Pull Aggro"
 
@@ -48,14 +49,14 @@ end
 -- threat per second over the last few seconds
 local function TPS(name, value, now)
   local h = history[name]
-  if not h then
-    h = { now, value }
+  if not h or value < h[3] then
+    h = { now, value, value }
     history[name] = h
     return 0
   end
 
   local span = now - h[1]
-  local tps = span > 0.9 and math.max(0, (value - h[2]) / span) or (h.tps or 0)
+  local tps = span > 0 and math.max(0, (value - h[2]) / span) or (h.tps or 0)
 
   -- move the window forward every five seconds
   if span > 5 then
@@ -63,6 +64,7 @@ local function TPS(name, value, now)
   end
 
   h.tps = tps
+  h[3] = value
   return tps
 end
 
@@ -114,7 +116,10 @@ local function ParseAnswer(text)
 
   -- drop players that left the list
   for name in pairs(data.threat) do
-    if not seen[name] and name ~= PULL then data.threat[name] = nil end
+    if not seen[name] and name ~= PULL then
+      data.threat[name] = nil
+      history[name] = nil
+    end
   end
 
   -- where you'd pull aggro: 110% of the tank in melee range, 130% at range
@@ -164,6 +169,15 @@ end
 
 local function Refresh()
   for _, callback in pairs(parser.callbacks.refresh) do callback() end
+  -- Threat packets already arrive at a bounded rate. Display them immediately
+  -- instead of waiting for the regular 0.2-second window refresh timer.
+  for i = 1, 10 do
+    local w = window[i]
+    if w and config[i] and config[i].view == 5 and w:IsVisible() then
+      w.needs_refresh = nil
+      w:Refresh()
+    end
+  end
 end
 
 threat:RegisterEvent("CHAT_MSG_ADDON")
@@ -220,7 +234,7 @@ threat:SetScript("OnUpdate", function()
   if not bars then return end
 
   -- another addon (TWThreat) is already asking: just listen to its answers
-  if threat.last_foreign and now - threat.last_foreign < INTERVAL * 2 then return end
+  if threat.last_foreign and now - threat.last_foreign < FOREIGN_TIMEOUT then return end
 
   threat.pending = true
   threat.requested_at = threat.requested_at or now

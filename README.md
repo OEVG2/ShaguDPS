@@ -51,11 +51,14 @@ parser from [Duciel's fork](https://github.com/Duciel/ShaguDPS).
   target, straight from the server's threat API (the same one TWThreat uses).
 - Shows each player's threat and percent of the tank's threat, with a red
   *Pull Aggro* line where you would take aggro: 110% of the tank in melee range,
-  130% at range. Hover a bar for threat per second and who has aggro.
+  130% at range. Player bars show threat, TPS and percent; hover a bar to see
+  who has aggro. The *Pull Aggro* row is a threshold, so it has no TPS value.
 - The segment button shows the target's name in this mode.
 - Asks the server twice a second, only while a window shows threat, you are in a
   party or raid and your target is an elite or boss in combat. If TWThreat is
   also running, ShaguDPS reads its answers instead of asking a second time.
+  Replies refresh visible threat windows immediately; actual update speed
+  depends on the server and, when sharing replies, the other addon's query rate.
 
 **Per second time**
 - *Active Time* (default, as before): each unit's own time spent dealing damage.

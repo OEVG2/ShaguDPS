@@ -106,10 +106,10 @@ local view_templates = {
     bar_val = "value",
     bar_lower_max = nil,
     bar_lower_val = nil,
-    chat_string = "%s (%s%%)",
-    bar_string = "%s (%s%%)",
-    bar_string_params = { "value_short", "threat_perc" },
-    chat_string_params = { "value_short", "threat_perc" },
+    chat_string = "%s (%s TPS, %s%%)",
+    bar_string = "%s (%s TPS, %s%%)",
+    bar_string_params = { "value_short", "threat_tps_short", "threat_perc" },
+    chat_string_params = { "value_short", "threat_tps_short", "threat_perc" },
   },
 }
 
@@ -573,6 +573,7 @@ local function GetData(unitdata, values)
 
   -- threat percent of the tank
   values.threat_perc = unitdata["_perc"] or 0
+  values.threat_tps_short = short(round(unitdata["_tps"] or 0, 1))
 
   -- short numbers for the bars
   values.value_short = short(values.value)
@@ -742,9 +743,22 @@ local function Refresh(self, force, report)
   if config[wid].view == 5 then
     local target = ShaguDPS.threat and ShaguDPS.threat.target
     self.btnSegment.caption:SetText(target or "No Target")
-  elseif not force and self.lastview == 5 then
-    self.btnSegment.caption:SetText(SegmentName(config[wid]))
+    -- Size to the target text and center the two buttons as one title group.
+    -- Leave room for the icons at both ends of the title bar.
+    local width = math.min(math.max(50, self.btnSegment.caption:GetStringWidth() + 12), math.max(50, self:GetWidth() - 170))
+    self.btnSegment:SetWidth(width)
+    self.btnSegment:ClearAllPoints()
+    self.btnSegment:SetPoint("RIGHT", self.title, "CENTER", (width - 51) / 2, 0)
+  else
+    self.btnSegment:SetWidth(50)
+    self.btnSegment:ClearAllPoints()
+    self.btnSegment:SetPoint("RIGHT", self.title, "CENTER", TITLE_SHIFT - .5, 0)
+    if not force and self.lastview == 5 then
+      self.btnSegment.caption:SetText(SegmentName(config[wid]))
+    end
   end
+  self.btnMode:ClearAllPoints()
+  self.btnMode:SetPoint("LEFT", self.btnSegment, "RIGHT", 1, 0)
   self.lastview = config[wid].view
 
   -- hint while the threat list is empty
@@ -822,6 +836,9 @@ local function Refresh(self, force, report)
 
       local line = string.format(template.bar_string,
         self.values[a[1]], self.values[a[2]], self.values[a[3]], self.values[a[4]], self.values[a[5]])
+      if config[wid].view == 5 and unitdata._pull then
+        line = string.format("%s (%s%%)", self.values.value_short, self.values.threat_perc)
+      end
 
       self.bars[bar].textRight:SetText(line)
 
@@ -837,6 +854,9 @@ local function Refresh(self, force, report)
       local c = template.chat_string_params or a
       local chat = string.format(template.chat_string,
         self.values[c[1]], self.values[c[2]], self.values[c[3]], self.values[c[4]], self.values[c[5]])
+      if config[wid].view == 5 and unitdata._pull then
+        chat = string.format("%s (%s%%)", self.values.value_short, self.values.threat_perc)
+      end
 
       announce(i .. ". " .. self.values.name .. " " .. chat)
     end
@@ -1012,7 +1032,11 @@ local function CreateWindow(wid)
     local template = template
     local name = name
 
-    button:SetPoint("CENTER", frame.title, "CENTER", template[3] + TITLE_SHIFT, -17-template[1]*14)
+    if template[6] == "view" then
+      button:SetPoint("CENTER", frame.btnMode, "CENTER", 0, -17-template[1]*14)
+    else
+      button:SetPoint("CENTER", frame.title, "CENTER", template[3] + TITLE_SHIFT, -17-template[1]*14)
+    end
     button:SetFrameStrata("HIGH")
     button:SetHeight(16)
     button:SetWidth(50)

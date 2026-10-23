@@ -1,6 +1,6 @@
 -- Run from the repository root with Lua 5.0: lua tests/threat.lua
 local now, party, raid, target, combat = 10, 1, 0, true, true
-local sent, refreshes = {}, 0
+local sent, refreshes, draws = {}, 0, 0
 local visible = true
 function GetTime() return now end
 function GetNumPartyMembers() return party end
@@ -22,7 +22,7 @@ ShaguDPS = {
   config = {[1]={view=5,bars=8}},
   data = {classes={}},
   parser = {ScanName=function() end, callbacks={refresh={function() refreshes=refreshes+1 end}}},
-  window = {[1]={IsVisible=function() return visible end}},
+  window = {[1]={IsVisible=function() return visible end, Refresh=function() draws=draws+1 end}},
 }
 dofile('threat.lua')
 local threat, data = ShaguDPS.threat, ShaguDPS.data
@@ -82,4 +82,35 @@ emit('PLAYER_TARGET_CHANGED')
 assert(string.find(threat:GetStatus(), 'Waiting for threat data', 1, true))
 emit('CHAT_MSG_ADDON', 'TWTv4=')
 assert(string.find(threat:GetStatus(), 'no threat entries', 1, true))
+-- Poll at 2 Hz, without waiting for the normal window refresh timer.
+emit('PLAYER_TARGET_CHANGED')
+now = 30
+update()
+local requests, previous_draws = table.getn(sent), draws
+now = 30.21
+update()
+assert(table.getn(sent) == requests, 'polls must be rate limited')
+now = 30.51
+update()
+assert(table.getn(sent) == requests + 1, 'poll again after 0.5 seconds')
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:100:100:1;')
+assert(draws > previous_draws, 'visible threat window refreshes immediately')
+assert(data.threat.Tester._tps == 0, 'first sample has no elapsed time')
+now = 30.71
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:120:100:1;')
+assert(math.abs(data.threat.Tester._tps - 100) < 0.001, 'TPS updates on the next sample')
+now = 30.91
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:110:100:1;')
+assert(data.threat.Tester._tps == 0, 'threat reduction resets TPS baseline')
+now = 31.11
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:130:100:1;')
+assert(math.abs(data.threat.Tester._tps - 100) < 0.001)
+emit('CHAT_MSG_ADDON', 'TWTv4=')
+now = 31.3
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:200:100:1;')
+assert(data.threat.Tester._tps == 0, 'returning players start a fresh sample')
+visible = false
+previous_draws = draws
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:210:100:1;')
+assert(draws == previous_draws, 'hidden windows are not redrawn')
 print('Threat regression checks passed (Lua 5.0)')
