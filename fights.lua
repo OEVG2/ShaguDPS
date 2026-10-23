@@ -21,6 +21,9 @@ local boss, boss_dead
 
 local function IsBoss(unit)
   if not UnitExists(unit) or UnitIsPlayer(unit) or UnitIsFriend("player", unit) then return nil end
+  -- Post-fight heals can open another parser segment while someone still
+  -- targets the corpse. Only an engaged, living boss identifies a new attempt.
+  if UnitIsDead(unit) or not UnitAffectingCombat(unit) then return nil end
   return UnitClassification(unit) == "worldboss" or UnitLevel(unit) == -1
 end
 
