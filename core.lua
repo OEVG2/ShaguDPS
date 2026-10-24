@@ -18,12 +18,13 @@ local textures = {
   "Interface\\AddOns\\ShaguDPS\\img\\bars\\Puppeteer",
   "Interface\\AddOns\\ShaguDPS\\img\\bars\\Puppeteer-Shineless",
   "Interface\\AddOns\\ShaguDPS\\img\\bars\\Puppeteer-Flat",
+  "Interface\\AddOns\\ShaguDPS\\img\\bars\\BlizzardRetailBar",
 }
 
 -- names of the textures above, as the settings show them
 local texture_names = {
   "Flat", "Blizzard", "Tooltip", "Skill Bar",
-  "Puppeteer", "Puppeteer Shineless", "Puppeteer Flat",
+  "Puppeteer", "Puppeteer Shineless", "Puppeteer Flat", "Blizzard Retail (Modern)",
 }
 
 -- a basic rounding function

@@ -83,6 +83,10 @@ parser from [Duciel's fork](https://github.com/Duciel/ShaguDPS).
   page arrows and close button.
 
 **Window**
+- *Blizzard Retail (Modern)* is texture 8 (`/sdps texture 8`). It uses the
+  supplied retail bar texture and modern colors for all nine classes at full
+  opacity, including Warlock (0.53, 0.53, 0.93). Pastel lightening is bypassed
+  for all class colors with this preset.
 - Class icons appear beside player names in Damage, Heal and Threat. Toggle
   *Show Class Icons* in settings; icons scale with bar height.
 - Lock button left of the + button locks or unlocks moving and resizing of all windows.
@@ -126,7 +130,7 @@ Optional client mods: [ClassicAPI](https://github.com/brues-code/ClassicAPI),
 /sdps mergepet 1       Merge pets into owner data (0 or 1)
 /sdps source 1         Data source (1 auto, 2 ClassicAPI, 3 Nampower, 4 chat log)
 /sdps time 0           Per second time (0 active time, 1 fight duration)
-/sdps texture 2        Statusbar texture (1 to 7)
+/sdps texture 2        Statusbar texture (1 to 8)
 /sdps pastel 0         Use pastel colors (0 or 1)
 /sdps backdrop 1       Show window backdrop and border (0 or 1)
 /sdps theme 1          Theme (0 flat, 1 classic), needs a reload

@@ -1,0 +1,5 @@
+BlizzardRetailBar.tga supplied by the user in Modern-Warlock-Color-and-Texture.zip.
+Original source: https://github.com/Bodify/BetterBlizzFrames/blob/main/media/blizzTex/BlizzardRetailBar.tga
+Attribution: Bodify / BetterBlizzFrames.
+The supplied reference states: All Rights Reserved, Copyright (c) 2023-2026 Bodify.
+The reference does not grant redistribution rights.

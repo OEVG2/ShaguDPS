@@ -53,6 +53,15 @@ local classes = {
   SHAMAN = true, PRIEST = true, WARLOCK = true, PALADIN = true,
 }
 
+-- Modern class palette for the retail bar preset, independent of other addons.
+local modern_colors = {
+  WARRIOR = {.78, .61, .43}, MAGE = {.25, .78, .92},
+  ROGUE = {1, .96, .41}, DRUID = {1, .49, .04},
+  HUNTER = {.67, .83, .45}, SHAMAN = {0, .44, .87},
+  PRIEST = {1, 1, 1}, WARLOCK = {.53, .53, .93},
+  PALADIN = {.96, .55, .73},
+}
+
 -- The built-in class atlas is also used by GreedMeter; no extra assets needed.
 local class_icons = {
   WARRIOR = {0, .25, 0, .25}, MAGE = {.25, .5, 0, .25},
@@ -653,7 +662,10 @@ local function GetData(unitdata, values)
     values.color.g = RAID_CLASS_COLORS[data["classes"][unit]].g
     values.color.b = RAID_CLASS_COLORS[data["classes"][unit]].b
 
-    if config.pastel == 1 then
+    if config.texture == 8 then
+      local color = modern_colors[data.classes[unit]]
+      values.color.r, values.color.g, values.color.b = color[1], color[2], color[3]
+    elseif config.pastel == 1 then
       values.color.r = (values.color.r + .5) * .5
       values.color.g = (values.color.g + .5) * .5
       values.color.b = (values.color.b + .5) * .5
@@ -869,7 +881,7 @@ local function Refresh(self, force, report)
         self.bars[bar].lowerBar:Hide()
       end
 
-      self.bars[bar]:SetStatusBarColor(self.values.color.r, self.values.color.g, self.values.color.b)
+      self.bars[bar]:SetStatusBarColor(self.values.color.r, self.values.color.g, self.values.color.b, 1)
       self.bars[bar].textLeft:SetText(i .. ". " .. self.values.name)
       window.UpdateClassIcon(self.bars[bar], self.values.class)
 
