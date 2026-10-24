@@ -378,6 +378,51 @@ end)
 setglobal("ShaguDPSSettings", settings)
 table.insert(UISpecialFrames, "ShaguDPSSettings")
 
+-- Profiling is opt-in. Take only two snapshots; never reset global counters.
+local perfFrame
+local function MeasurePerformance()
+  local function out(text) DEFAULT_CHAT_FRAME:AddMessage("ShaguDPS performance: " .. text) end
+  local memory = UpdateAddOnMemoryUsage and GetAddOnMemoryUsage
+  local cpu = UpdateAddOnCPUUsage and GetAddOnCPUUsage
+  if not memory and not cpu then
+    out("This build has no addon profiling APIs. A newer ClassicAPI build is required.")
+    return
+  end
+  local enabled = false
+  if cpu and GetCVar then
+    local ok, value = pcall(GetCVar, "scriptProfile")
+    enabled = ok and tonumber(value) == 1
+  end
+  if not enabled then
+    out("CPU profiling is off. For CPU results use /console scriptProfile 1, then /reload. Turn it off and reload after testing; profiling adds overhead.")
+  end
+  local initialMemory, initialCPU
+  if memory then UpdateAddOnMemoryUsage(); initialMemory = GetAddOnMemoryUsage("ShaguDPS") end
+  if enabled then UpdateAddOnCPUUsage(); initialCPU = GetAddOnCPUUsage("ShaguDPS") end
+  local start = GetTime()
+  perfFrame = perfFrame or CreateFrame("Frame")
+  perfFrame:SetScript("OnUpdate", function()
+    local elapsed = GetTime() - start
+    if elapsed < 10 then return end
+    perfFrame:SetScript("OnUpdate", nil)
+    if memory then
+      UpdateAddOnMemoryUsage()
+      local current = GetAddOnMemoryUsage("ShaguDPS")
+      out(string.format("Memory: %.1f KB (%+.1f KB over %.1fs; garbage collection affects this).", current, current - initialMemory, elapsed))
+    end
+    if enabled then
+      UpdateAddOnCPUUsage()
+      local delta = GetAddOnCPUUsage("ShaguDPS") - initialCPU
+      if delta < 0 then
+        out("CPU counters were reset during measurement; run /sdps perf again.")
+      else
+        out(string.format("CPU: %.2f ms over %.1fs (%.2f ms/s).", delta, elapsed, delta / elapsed))
+      end
+    end
+  end)
+  out("Measuring for 10 seconds. Play normally during the sample.")
+end
+
 -- Provide Slash Commands
 SLASH_SHAGUMETER1, SLASH_SHAGUMETER2, SLASH_SHAGUMETER3 = "/shagudps", "/sdps", "/sd"
 SlashCmdList["SHAGUMETER"] = function(msg, editbox)
@@ -387,6 +432,7 @@ SlashCmdList["SHAGUMETER"] = function(msg, editbox)
 
   if (msg == "" or msg == nil) then
     out("|cffffcc00Shagu|cffffffffDPS: |cffaaaaaa(data source: " .. ActiveSource() .. ")")
+    out("  /sdps perf |cffcccccc- Measure addon CPU/memory for 10 seconds")
     out("  /sdps config |cffcccccc- Open the settings")
     out("  /sdps visible " .. config.visible .. " |cffcccccc- Show main window")
     out("  /sdps height " .. config.height .. " |cffcccccc- Bar height")
@@ -424,7 +470,9 @@ SlashCmdList["SHAGUMETER"] = function(msg, editbox)
     spacing  = { "spacing", 0, config.height, "Bar spacing" },
   }
 
-  if cmd == "threatdebug" then
+  if cmd == "perf" then
+    MeasurePerformance()
+  elseif cmd == "threatdebug" then
     ShaguDPS.threat:Measure()
   elseif cmd == "toggle" then
     config.visible = config.visible == 1 and 0 or 1

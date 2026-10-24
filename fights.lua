@@ -17,7 +17,8 @@ ShaguDPS.fights = fights
 fights.list = {}
 fights.next_id = 1
 
-local boss, boss_dead
+local boss, boss_dead, boss_guid
+local structured_deaths = CombatLogGetCurrentEventInfo and UnitGUID
 
 local function IsBoss(unit)
   if not UnitExists(unit) or UnitIsPlayer(unit) or UnitIsFriend("player", unit) then return nil end
@@ -38,7 +39,11 @@ local function ScanForBoss()
     -- skip raid units of a smaller raid
     local _, _, n = string.find(unit, "^raid(%d+)")
     if not n or tonumber(n) <= raid then
-      if IsBoss(unit) then return UnitName(unit) end
+      if IsBoss(unit) then
+        local guid = UnitGUID and UnitGUID(unit)
+        if type(guid) ~= "string" or guid == "" then guid = nil end
+        return UnitName(unit), guid
+      end
     end
   end
 end
@@ -88,7 +93,7 @@ fights.ForWindow = function(self, wconfig)
 end
 
 parser.OnFightStart = function()
-  boss, boss_dead = nil, nil
+  boss, boss_dead, boss_guid = nil, nil, nil
 end
 
 parser.OnFightEnd = function(duration)
@@ -112,7 +117,7 @@ parser.OnFightEnd = function(duration)
     table.remove(fights.list)
   end
 
-  boss, boss_dead = nil, nil
+  boss, boss_dead, boss_guid = nil, nil, nil
 end
 
 -- look for a boss once a second while a fight runs
@@ -120,7 +125,7 @@ fights:SetScript("OnUpdate", function()
   if (this.tick or 0) > GetTime() then return end
   this.tick = GetTime() + 1
   if not parser.fight.active or boss then return end
-  boss = ScanForBoss()
+  boss, boss_guid = ScanForBoss()
 end)
 
 -- "Onyxia dies."
@@ -133,6 +138,7 @@ end
 
 fights:RegisterEvent("CHAT_MSG_COMBAT_HOSTILE_DEATH")
 fights:RegisterEvent("VARIABLES_LOADED")
+if structured_deaths then fights:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED") end
 fights:SetScript("OnEvent", function()
   if event == "VARIABLES_LOADED" then
     ShaguDPS_Fights = ShaguDPS_Fights or {}
@@ -140,7 +146,11 @@ fights:SetScript("OnEvent", function()
     for _, fight in pairs(fights.list) do
       if fight.id >= fights.next_id then fights.next_id = fight.id + 1 end
     end
-  elseif event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" and boss and death_pattern and arg1 then
+  elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+    -- Death events often have no source; match the destination GUID directly.
+    if boss_guid and arg2 == "UNIT_DIED" and arg8 == boss_guid then boss_dead = true end
+  elseif event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" and boss and death_pattern and arg1
+    and not (structured_deaths and boss_guid) then
     local _, _, name = string.find(arg1, death_pattern)
     if name == boss then boss_dead = true end
   end

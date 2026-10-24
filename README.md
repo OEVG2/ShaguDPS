@@ -123,6 +123,7 @@ Optional client mods: [ClassicAPI](https://github.com/brues-code/ClassicAPI),
 ```
 /sdps config           Open the settings
 /sdps threatdebug      Measure threat requests/replies for 10 seconds
+/sdps perf             Measure addon CPU/memory for 10 seconds
 /sdps visible 1        Show main window (0 or 1)
 /sdps height 15        Bar height (any number)
 /sdps spacing 0        Bar spacing
@@ -158,3 +159,17 @@ Or in your Config.wtf:
 
 Some unitframe addons rely on the range being exactly "40" for their range checks,
 and some reset it back to "40".
+
+## Optional ClassicAPI diagnostics
+
+With a ClassicAPI build that provides addon profiling, `/sdps perf` measures
+ShaguDPS for ten seconds. Memory is reported in KB with its change; garbage
+collection can change that value. CPU results require `/console scriptProfile 1`
+followed by `/reload`. Profiling adds overhead: turn it off with
+`/console scriptProfile 0` and `/reload` after testing. CPU results are elapsed
+addon CPU milliseconds and milliseconds per second, not an FPS measurement.
+Older builds report unsupported diagnostics without affecting normal operation.
+
+Boss kill detection uses ClassicAPI's `UNIT_DIED` destination GUID when the
+combat-log and GUID APIs are available. Other clients, or bosses whose GUID
+cannot be resolved, retain localized chat death detection.

@@ -74,4 +74,34 @@ assert(fights.list[1].name=='Hakkar' and fights.list[2].kill)
 -- Saved history must be a snapshot, independent of later segment edits.
 ShaguDPS.data.damage[1].Tester._sum=9999
 assert(fights.list[2].damage.Tester._sum==1000)
+-- Modern ClassicAPI: destination GUID, not localized text or source, decides kills.
+CombatLogGetCurrentEventInfo = function() end
+local guid = '0xBOSS1'
+UnitGUID = function() return guid end
+dofile('fights.lua')
+fights = ShaguDPS.fights
+now, in_combat, dead = 110, true, false
+parser.fight.active = true
+parser.OnFightStart()
+scan()
+event, arg1 = 'CHAT_MSG_COMBAT_HOSTILE_DEATH', 'Hakkar dies.'
+fights.scripts.OnEvent()
+event, arg2, arg8 = 'COMBAT_LOG_EVENT_UNFILTERED', 'UNIT_DIED', '0xOTHER'
+fights.scripts.OnEvent()
+parser.OnFightEnd(10)
+assert(not fights.list[1].kill, 'ignore a same-name mob or unrelated death')
+now = 120
+parser.OnFightStart()
+scan()
+event, arg2, arg3, arg8 = 'COMBAT_LOG_EVENT_UNFILTERED', 'UNIT_DIED', true, guid
+fights.scripts.OnEvent()
+parser.OnFightEnd(10)
+assert(fights.list[1].kill, 'source-less GUID death marks the boss kill')
+now, guid = 130, nil
+parser.OnFightStart()
+scan()
+event, arg1 = 'CHAT_MSG_COMBAT_HOSTILE_DEATH', 'Hakkar dies.'
+fights.scripts.OnEvent()
+parser.OnFightEnd(10)
+assert(fights.list[1].kill, 'chat fallback when boss GUID cannot be resolved')
 print('Fight history regression checks passed (Lua 5.0)')
