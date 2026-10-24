@@ -20,6 +20,8 @@ local window = ShaguDPS.window
 local QUERY_PREFIX = "TWT_UDTSv4"
 local ANSWER_TAG = "TWTv4="
 local INTERVAL = 0.5
+local STALE_TIMEOUT = 3
+local TPS_WINDOW = 5
 local FOREIGN_TIMEOUT = 1 -- allow slower polling addons to keep supplying data
 
 -- Opt-in, short measurement; no per-packet chat output or retained log.
@@ -54,7 +56,7 @@ threat.target = nil      -- name of the unit the list belongs to
 threat.pending = nil     -- we asked and wait for our answer
 threat.last_foreign = nil  -- last answer to a question another addon asked
 
--- per player threat samples for threat per second: name -> { time, value }
+-- Recent timestamped samples per player, bounded to the rolling TPS window.
 local history = {}
 
 local function Wipe(t)
@@ -66,26 +68,29 @@ local function Clear()
   Wipe(history)
 end
 
--- threat per second over the last few seconds
 local function TPS(name, value, now)
   local h = history[name]
-  if not h or value < h[3] then
-    h = { now, value, value }
-    history[name] = h
+  local last = h and h[table.getn(h)]
+  if not last or value < last.value or now - last.time >= STALE_TIMEOUT then
+    history[name] = { { time = now, value = value } }
     return 0
   end
-
-  local span = now - h[1]
-  local tps = span > 0 and math.max(0, (value - h[2]) / span) or (h.tps or 0)
-
-  -- move the window forward every five seconds
-  if span > 5 then
-    h[1], h[2] = now, value
+  if now == last.time then
+    last.value = value
+  else
+    table.insert(h, { time = now, value = value })
   end
-
-  h.tps = tps
-  h[3] = value
-  return tps
+  local cutoff = now - TPS_WINDOW
+  -- Retain one sample before the boundary so it can be interpolated.
+  while table.getn(h) > 1 and h[2].time <= cutoff do table.remove(h, 1) end
+  local first = h[1]
+  local start, baseline = first.time, first.value
+  if start < cutoff and h[2] then
+    local nextSample = h[2]
+    baseline = baseline + (nextSample.value - baseline) * (cutoff - start) / (nextSample.time - start)
+    start = cutoff
+  end
+  return now > start and math.max(0, (value - baseline) / (now - start)) or 0
 end
 
 local function Entry(name)
@@ -148,6 +153,11 @@ local function ParseAnswer(text)
     pull._sum = math.floor(tank_threat * (my_melee and 1.1 or 1.3))
     pull._perc = my_melee and 110 or 130
     pull._pull = true
+    pull._minimum = nil
+    if not seen[me] then
+      pull._minimum = math.floor(tank_threat * 1.1)
+      pull._perc = "110-130"
+    end
   else
     data.threat[PULL] = nil
   end
@@ -179,6 +189,8 @@ threat.GetStatus = function(self)
     return "Select a living elite or boss target to view threat."
   elseif not UnitAffectingCombat("target") then
     return "Waiting for the target to enter combat."
+  elseif self.stale then
+    return "Threat data stopped arriving. Waiting for a fresh reply."
   elseif self.last_answer then
     return "The server returned no threat entries for this target."
   elseif self.requested_at and GetTime() - self.requested_at >= 3 then
@@ -188,14 +200,16 @@ threat.GetStatus = function(self)
 end
 
 local function Refresh()
-  for _, callback in pairs(parser.callbacks.refresh) do callback() end
   -- Threat packets already arrive at a bounded rate. Display them immediately
   -- instead of waiting for the regular 0.2-second window refresh timer.
   for i = 1, 10 do
     local w = window[i]
-    if w and config[i] and config[i].view == 5 and w:IsVisible() then
-      w.needs_refresh = nil
-      w:Refresh()
+    if w and config[i] and config[i].view == 5 then
+      w.needs_refresh = true
+      if w:IsVisible() then
+        w.needs_refresh = nil
+        w:Refresh()
+      end
     end
   end
 end
@@ -247,7 +261,9 @@ threat:SetScript("OnEvent", function()
 
     -- answers are for the target of whoever asked: only take them while
     -- we look at a target that can have one
-    if not TargetUsable() then return end
+    if not TargetUsable() or not UnitAffectingCombat("target") then return end
+    if GetNumRaidMembers() == 0 and GetNumPartyMembers() == 0 then return end
+    threat.stale = nil
     threat.target = UnitName("target")
     threat.last_answer = GetTime()
     ParseAnswer(arg2)
@@ -261,6 +277,7 @@ threat:SetScript("OnEvent", function()
     Clear()
     threat.pending, threat.requested_at, threat.last_answer = nil, nil, nil
     threat.target = TargetUsable() and UnitName("target") or nil
+    threat.stale = nil
     threat.tick = 0
     -- Replies for the previous target must not delay the new target query.
     threat.last_foreign = nil
@@ -278,8 +295,22 @@ threat:SetScript("OnUpdate", function()
   if (this.tick or 0) > now then return end
   this.tick = now + INTERVAL
 
+  local usable = TargetUsable()
+  local active = usable and UnitAffectingCombat("target") and
+    (GetNumRaidMembers() > 0 or GetNumPartyMembers() > 0)
+  local expired = threat.last_answer and now - threat.last_answer >= STALE_TIMEOUT
+  local cleared
+  if not active or expired then
+    cleared = next(data.threat) ~= nil
+    Clear()
+    threat.stale = active and expired or nil
+    if not active then
+      threat.last_answer, threat.requested_at, threat.pending, threat.last_foreign = nil, nil, nil, nil
+    end
+  end
+  threat.target = usable and UnitName("target") or nil
   local status = threat:GetStatus()
-  if status ~= threat.status then
+  if cleared or status ~= threat.status then
     threat.status = status
     Refresh()
   end

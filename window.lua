@@ -53,6 +53,34 @@ local classes = {
   SHAMAN = true, PRIEST = true, WARLOCK = true, PALADIN = true,
 }
 
+-- The built-in class atlas is also used by GreedMeter; no extra assets needed.
+local class_icons = {
+  WARRIOR = {0, .25, 0, .25}, MAGE = {.25, .5, 0, .25},
+  ROGUE = {.5, .75, 0, .25}, DRUID = {.75, 1, 0, .25},
+  HUNTER = {0, .25, .25, .5}, SHAMAN = {.25, .5, .25, .5},
+  PRIEST = {.5, .75, .25, .5}, WARLOCK = {.75, 1, .25, .5},
+  PALADIN = {0, .25, .5, .75},
+}
+
+window.UpdateClassIcon = function(bar, class)
+  local coords = config.class_icons == 1 and class_icons[class]
+  local offset = 5
+  if coords then
+    bar.classIcon = bar.classIcon or bar:CreateTexture(nil, "OVERLAY")
+    local size = math.max(1, config.height - config.spacing - 2)
+    bar.classIcon:SetTexture("Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
+    bar.classIcon:SetTexCoord(unpack(coords))
+    bar.classIcon:SetWidth(size)
+    bar.classIcon:SetHeight(size)
+    bar.classIcon:SetPoint("LEFT", bar, "LEFT", 2, 0)
+    bar.classIcon:Show()
+    offset = size + 5
+  elseif bar.classIcon then
+    bar.classIcon:Hide()
+  end
+  bar.textLeft:SetPoint("TOPLEFT", bar, "TOPLEFT", offset, 1)
+end
+
 -- default backdrops
 local backdrop = {
   bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -263,7 +291,12 @@ local function barTooltipShow()
     local entry = segment[this.unit]
     GameTooltip:AddLine(this.title .. ":")
     if entry._pull then
-      GameTooltip:AddDoubleLine("|cffffffffYou pull aggro at", "|cffff4040" .. entry._sum)
+      local threshold = entry._minimum and (entry._minimum .. "-" .. entry._sum) or entry._sum
+      GameTooltip:AddDoubleLine("|cffffffffYou pull aggro at", "|cffff4040" .. threshold)
+      if entry._minimum then
+        GameTooltip:AddLine("|cffaaaaaaYour range is unknown: 110% melee, 130% ranged.")
+        GameTooltip:AddLine("|cffaaaaaaThe bar marks the upper end of this range.")
+      end
       GameTooltip:AddDoubleLine("|cffaaaaaaOf the tank's threat", "|cffaaaaaa" .. entry._perc .. "%")
     else
       GameTooltip:AddDoubleLine("|cffffffffThreat", "|cffffffff" .. entry._sum)
@@ -577,6 +610,9 @@ local function GetData(unitdata, values)
 
   -- short numbers for the bars
   values.value_short = short(values.value)
+  if unitdata._minimum then
+    values.value_short = short(unitdata._minimum) .. "-" .. values.value_short
+  end
   values.persecond_short = short(values.value_persecond)
   values.effective_short = short(values.effective_value)
   values.effective_persecond_short = short(values.effective_value_persecond)
@@ -594,6 +630,8 @@ local function GetData(unitdata, values)
   else
     values.name = unit
   end
+
+  values.class = not unitdata._pull and data.classes[unit] or nil
 
   -- write color into view
   -- default to faded name colors
@@ -833,6 +871,7 @@ local function Refresh(self, force, report)
 
       self.bars[bar]:SetStatusBarColor(self.values.color.r, self.values.color.g, self.values.color.b)
       self.bars[bar].textLeft:SetText(i .. ". " .. self.values.name)
+      window.UpdateClassIcon(self.bars[bar], self.values.class)
 
       local line = string.format(template.bar_string,
         self.values[a[1]], self.values[a[2]], self.values[a[3]], self.values[a[4]], self.values[a[5]])

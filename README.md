@@ -60,6 +60,11 @@ parser from [Duciel's fork](https://github.com/Duciel/ShaguDPS).
   Switching targets requests fresh data immediately.
   Replies refresh visible threat windows immediately; actual update speed
   depends on the server and, when sharing replies, the other addon's query rate.
+- TPS is averaged over a rolling five-second window. Old threat bars clear when
+  the target dies, combat ends, you leave the group, or no reply arrives for
+  three seconds. A fresh reply restores the display.
+- If your player is missing from the reply, the pull threshold shows a
+  110–130% range; the bar marks its upper end until your range is known.
 
 **Per second time**
 - *Active Time* (default, as before): each unit's own time spent dealing damage.
@@ -78,6 +83,8 @@ parser from [Duciel's fork](https://github.com/Duciel/ShaguDPS).
   page arrows and close button.
 
 **Window**
+- Class icons appear beside player names in Damage, Heal and Threat. Toggle
+  *Show Class Icons* in settings; icons scale with bar height.
 - Lock button left of the + button locks or unlocks moving and resizing of all windows.
 - Three more bar textures in the style of Puppeteer's health bars: *Puppeteer*
   (with the shine), *Puppeteer Shineless* and *Puppeteer Flat*. *Blizzard* is the

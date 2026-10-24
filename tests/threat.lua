@@ -7,7 +7,8 @@ function GetNumPartyMembers() return party end
 function GetNumRaidMembers() return raid end
 function UnitExists() return target end
 function UnitIsPlayer() return nil end
-function UnitIsDead() return nil end
+local dead = false
+function UnitIsDead() return dead end
 function UnitClassification() return 'elite' end
 function UnitAffectingCombat() return combat end
 function UnitName(unit) return unit == 'player' and 'Tester' or 'Boss' end
@@ -68,7 +69,7 @@ assert(table.getn(sent) == 3, 'no queries with hidden threat windows')
 now, visible, raid = 18, true, 10
 update()
 assert(sent[4][3] == 'RAID')
-assert(refreshes > 0)
+assert(draws > 0 and refreshes == 0, 'threat does not refresh damage/heal callbacks')
 now = 22
 update()
 assert(string.find(threat:GetStatus(), 'No threat reply', 1, true))
@@ -150,4 +151,49 @@ assert(string.find(messages[2], '0 changed replies', 1, true))
 now = 61
 update()
 assert(table.getn(messages) == 2, 'measurement stops automatically')
+-- A constant 100 TPS stream remains stable across rolling-window boundaries.
+now = 70
+emit('PLAYER_TARGET_CHANGED')
+for i = 0, 16 do
+  now = 70 + i * 0.5
+  emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:' .. (100 + i * 50) .. ':100:1;')
+  if i > 0 then assert(math.abs(data.threat.Tester._tps - 100) < 0.001) end
+end
+-- Repeated identical totals age the old gains out of the five-second window.
+for i = 1, 10 do
+  now = 78 + i * 0.5
+  emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:900:100:1;')
+end
+assert(data.threat.Tester._tps == 0)
+now = 83.5
+emit('CHAT_MSG_ADDON', 'TWTv4=Tank:1:1000:100:1;')
+assert(data.threat['Pull Aggro']._minimum == 1100)
+assert(data.threat['Pull Aggro']._sum == 1300)
+assert(data.threat['Pull Aggro']._perc == '110-130')
+now = 84
+emit('CHAT_MSG_ADDON', 'TWTv4=Tank:1:1000:100:1;Tester:0:100:10:0;')
+assert(not data.threat['Pull Aggro']._minimum and data.threat['Pull Aggro']._perc == 130)
+now = 87.1
+update()
+assert(not next(data.threat), 'expire old bars after three seconds without replies')
+assert(string.find(threat:GetStatus(), 'stopped arriving', 1, true))
+now = 87.2
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:200:100:1;')
+assert(data.threat.Tester._tps == 0 and not threat.stale, 'fresh reply recovers from stale state')
+now, dead = 88, true
+update()
+assert(not next(data.threat), 'clear bars on target death')
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:300:100:1;')
+assert(not next(data.threat), 'ignore late reply for a dead target')
+dead = false
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:300:100:1;')
+now, combat = 89, false
+update()
+assert(not next(data.threat), 'clear bars on combat end')
+combat = true
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:300:100:1;')
+now, party, raid = 90, 0, 0
+update()
+assert(not next(data.threat), 'clear bars on leaving the group')
+assert(refreshes == 0, 'damage/heal callbacks remain untouched')
 print('Threat regression checks passed (Lua 5.0)')

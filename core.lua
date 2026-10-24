@@ -87,6 +87,7 @@ local config = {
   backdrop = 1,
   texture = 2,
   pastel = 0,
+  class_icons = 1,
   lock = 0,
   theme = 1,      -- 1: classic Blizzard look, 0: original flat look
 }
@@ -103,6 +104,7 @@ local internals = {
   ["_melee"] = true,
   ["_tps"] = true,
   ["_pull"] = true,
+  ["_minimum"] = true,
 }
 
 -- create core component frames
