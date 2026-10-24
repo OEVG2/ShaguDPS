@@ -57,6 +57,7 @@ parser from [Duciel's fork](https://github.com/Duciel/ShaguDPS).
 - Asks the server twice a second, only while a window shows threat, you are in a
   party or raid and your target is an elite or boss in combat. If TWThreat is
   also running, ShaguDPS reads its answers instead of asking a second time.
+  Switching targets requests fresh data immediately.
   Replies refresh visible threat windows immediately; actual update speed
   depends on the server and, when sharing replies, the other addon's query rate.
 
@@ -110,6 +111,7 @@ Optional client mods: [ClassicAPI](https://github.com/brues-code/ClassicAPI),
 
 ```
 /sdps config           Open the settings
+/sdps threatdebug      Measure threat requests/replies for 10 seconds
 /sdps visible 1        Show main window (0 or 1)
 /sdps height 15        Bar height (any number)
 /sdps spacing 0        Bar spacing

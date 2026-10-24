@@ -22,6 +22,21 @@ local ANSWER_TAG = "TWTv4="
 local INTERVAL = 0.5
 local FOREIGN_TIMEOUT = 1 -- allow slower polling addons to keep supplying data
 
+-- Opt-in, short measurement; no per-packet chat output or retained log.
+local measurement
+local function DiagnosticMessage(text)
+  DEFAULT_CHAT_FRAME:AddMessage("ShaguDPS threat: " .. text)
+end
+
+local function DiagnosticTick(now)
+  if not measurement or now - measurement.start < 10 then return end
+  local elapsed = now - measurement.start
+  DiagnosticMessage(string.format("%.1fs: %d requests (%.2f/s), %d replies (%.2f/s), %d changed replies, %d target switches. Configured interval: %.2fs.",
+    elapsed, measurement.sent, measurement.sent / elapsed, measurement.received,
+    measurement.received / elapsed, measurement.changed, measurement.switches, INTERVAL))
+  measurement = nil
+end
+
 local PULL = "Pull Aggro"
 
 -- view 5 shows data.threat: one entry per player, rebuilt on every answer
@@ -29,6 +44,11 @@ data.threat = {}
 
 local threat = CreateFrame("Frame")
 ShaguDPS.threat = threat
+
+threat.Measure = function()
+  measurement = { start = GetTime(), sent = 0, received = 0, changed = 0, switches = 0 }
+  DiagnosticMessage("Measuring for 10 seconds. Keep one engaged elite/boss targeted, stay grouped, and keep the threat window visible. Disable other threat addons for an isolated test.")
+end
 
 threat.target = nil      -- name of the unit the list belongs to
 threat.pending = nil     -- we asked and wait for our answer
@@ -180,6 +200,24 @@ local function Refresh()
   end
 end
 
+local function Query(now)
+  if GetNumRaidMembers() == 0 and GetNumPartyMembers() == 0 then return end
+  if not TargetUsable() or not UnitAffectingCombat("target") then return end
+
+  local bars = ThreatBars()
+  if not bars then return end
+
+  -- another addon (TWThreat) is already asking: just listen to its answers
+  if threat.last_foreign and now - threat.last_foreign < FOREIGN_TIMEOUT then return end
+
+  threat.tick = now + INTERVAL
+  threat.pending = true
+  threat.requested_at = threat.requested_at or now
+  local channel = GetNumRaidMembers() > 0 and "RAID" or "PARTY"
+  if measurement then measurement.sent = measurement.sent + 1 end
+  SendAddonMessage(QUERY_PREFIX, "limit=" .. math.min(40, bars), channel)
+end
+
 threat:RegisterEvent("CHAT_MSG_ADDON")
 threat:RegisterEvent("PLAYER_TARGET_CHANGED")
 threat:RegisterEvent("PLAYER_REGEN_ENABLED")
@@ -187,6 +225,17 @@ threat:RegisterEvent("PLAYER_REGEN_ENABLED")
 threat:SetScript("OnEvent", function()
   if event == "CHAT_MSG_ADDON" then
     if not arg2 or not string.find(arg2, ANSWER_TAG, 1, true) then return end
+    if measurement then
+      measurement.received = measurement.received + 1
+      local _, start = string.find(arg2, ANSWER_TAG, 1, true)
+      local payload = string.sub(arg2, start + 1)
+      local cut = string.find(payload, "#", 1, true)
+      if cut then payload = string.sub(payload, 1, cut - 1) end
+      if measurement.previous and payload ~= measurement.previous then
+        measurement.changed = measurement.changed + 1
+      end
+      measurement.previous = payload
+    end
 
     -- the first answer after our question is ours, any other one was asked
     -- for by another addon
@@ -204,12 +253,19 @@ threat:SetScript("OnEvent", function()
     ParseAnswer(arg2)
     Refresh()
   elseif event == "PLAYER_TARGET_CHANGED" then
+    if measurement then
+      measurement.switches = measurement.switches + 1
+      measurement.previous = nil
+    end
     -- the list belongs to the old target
     Clear()
     threat.pending, threat.requested_at, threat.last_answer = nil, nil, nil
     threat.target = TargetUsable() and UnitName("target") or nil
     threat.tick = 0
+    -- Replies for the previous target must not delay the new target query.
+    threat.last_foreign = nil
     Refresh()
+    Query(GetTime())
   elseif event == "PLAYER_REGEN_ENABLED" then
     Wipe(history)
   end
@@ -218,6 +274,7 @@ end)
 -- ask the server twice a second while a threat window is shown
 threat:SetScript("OnUpdate", function()
   local now = GetTime()
+  DiagnosticTick(now)
   if (this.tick or 0) > now then return end
   this.tick = now + INTERVAL
 
@@ -227,17 +284,5 @@ threat:SetScript("OnUpdate", function()
     Refresh()
   end
 
-  if GetNumRaidMembers() == 0 and GetNumPartyMembers() == 0 then return end
-  if not TargetUsable() or not UnitAffectingCombat("target") then return end
-
-  local bars = ThreatBars()
-  if not bars then return end
-
-  -- another addon (TWThreat) is already asking: just listen to its answers
-  if threat.last_foreign and now - threat.last_foreign < FOREIGN_TIMEOUT then return end
-
-  threat.pending = true
-  threat.requested_at = threat.requested_at or now
-  local channel = GetNumRaidMembers() > 0 and "RAID" or "PARTY"
-  SendAddonMessage(QUERY_PREFIX, "limit=" .. math.min(40, bars), channel)
+  Query(now)
 end)

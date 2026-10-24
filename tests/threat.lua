@@ -54,19 +54,20 @@ emit('CHAT_MSG_ADDON', 'TWTv4=Tester:0:0:0:0;')
 assert(not data.threat.Tank and not data.threat['Pull Aggro'])
 emit('PLAYER_TARGET_CHANGED')
 assert(not next(data.threat))
-assert(not threat.last_answer and not threat.pending)
+assert(not threat.last_answer and threat.pending)
+assert(table.getn(sent) == 3, 'target changes query immediately')
 now, party = 15, 0
 update()
-assert(table.getn(sent) == 2, 'no queries while solo')
+assert(table.getn(sent) == 3, 'no queries while solo')
 now, party, combat = 16, 1, false
 update()
-assert(table.getn(sent) == 2, 'no queries out of combat')
+assert(table.getn(sent) == 3, 'no queries out of combat')
 now, combat, visible = 17, true, false
 update()
-assert(table.getn(sent) == 2, 'no queries with hidden threat windows')
+assert(table.getn(sent) == 3, 'no queries with hidden threat windows')
 now, visible, raid = 18, true, 10
 update()
-assert(sent[3][3] == 'RAID')
+assert(sent[4][3] == 'RAID')
 assert(refreshes > 0)
 now = 22
 update()
@@ -113,4 +114,40 @@ visible = false
 previous_draws = draws
 emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:210:100:1;')
 assert(draws == previous_draws, 'hidden windows are not redrawn')
+-- Recent replies from another addon must not suppress a new target query.
+visible = true
+now = 40
+emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:300:100:1;')
+local before_switch = table.getn(sent)
+emit('PLAYER_TARGET_CHANGED')
+assert(table.getn(sent) == before_switch + 1)
+assert(not next(data.threat), 'clear previous target data immediately')
+update()
+assert(table.getn(sent) == before_switch + 1, 'no duplicate poll in the same frame')
+visible = false
+emit('PLAYER_TARGET_CHANGED')
+assert(table.getn(sent) == before_switch + 1, 'hidden windows do not query on target change')
+visible, target = true, false
+emit('PLAYER_TARGET_CHANGED')
+assert(table.getn(sent) == before_switch + 1, 'no query when target is lost')
+local messages = {}
+DEFAULT_CHAT_FRAME = { AddMessage=function(self, text) table.insert(messages, text) end }
+now, visible, target = 50, true, true
+threat.last_foreign = nil
+threat:Measure()
+for sample = 0, 19 do
+  now = 50 + sample * 0.5
+  update()
+  emit('CHAT_MSG_ADDON', 'TWTv4=Tester:1:300:100:1;')
+end
+assert(table.getn(messages) == 1, 'diagnostic does not spam each packet')
+now = 60
+update()
+assert(table.getn(messages) == 2)
+assert(string.find(messages[2], '20 requests (2.00/s)', 1, true))
+assert(string.find(messages[2], '20 replies (2.00/s)', 1, true))
+assert(string.find(messages[2], '0 changed replies', 1, true))
+now = 61
+update()
+assert(table.getn(messages) == 2, 'measurement stops automatically')
 print('Threat regression checks passed (Lua 5.0)')

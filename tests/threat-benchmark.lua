@@ -1,5 +1,5 @@
 -- Synthetic Lua 5.0 benchmark, run from the repository root:
--- lua tests/threat-benchmark.lua 0.5 (then 0.2)
+-- lua tests/threat-benchmark.lua 0.5 (then 0.25)
 -- Simulates 10 minutes at 60 FPS with 40 entries per reply.
 -- Includes packet generation and parsing; WoW rendering/networking are mocked.
 local input = assert(io.open('threat.lua'))
@@ -41,4 +41,4 @@ end
 local elapsed=os.clock()-start
 local peak=gcinfo()
 collectgarbage()
-print(string.format('interval=%.1fs, simulated=600s, requests=%d, rows=%d, mock redraws=%d, CPU=%.4fs, CPU/reply=%.3fms, heap before/after GC=%.1f/%.1fKB, heap at end=%.1fKB',interval,requests,requests*40,draws,elapsed,elapsed/requests*1000,before,gcinfo(),peak))
+print(string.format('interval=%.2fs, simulated=600s, requests=%d, rows=%d, mock redraws=%d, CPU=%.4fs, CPU/reply=%.3fms, heap before/after GC=%.1f/%.1fKB, heap at end=%.1fKB',interval,requests,requests*40,draws,elapsed,elapsed/requests*1000,before,gcinfo(),peak))

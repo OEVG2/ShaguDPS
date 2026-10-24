@@ -423,7 +423,9 @@ SlashCmdList["SHAGUMETER"] = function(msg, editbox)
     spacing  = { "spacing", 0, config.height, "Bar spacing" },
   }
 
-  if cmd == "toggle" then
+  if cmd == "threatdebug" then
+    ShaguDPS.threat:Measure()
+  elseif cmd == "toggle" then
     config.visible = config.visible == 1 and 0 or 1
     window.Refresh(true)
     p("Visible: " .. config.visible)
